@@ -20,7 +20,7 @@ const CONFIG = {
     production: {
         API_BASE_URL: 'https://api.alimi.ai',
         GOOGLE_SHEETS_URL: 'https://script.google.com/macros/s/AKfycbzJOYtbHJRuIgQTT7BVhmzGvRaJ1TMBd-VDoe_DUk_Rbnyr9EBiB5W9Xutir8r8LcgUTg/exec',
-        SITE_URL: 'https://holysmokas.com'
+        SITE_URL: 'https://alimi.ai'
     }
 };
 

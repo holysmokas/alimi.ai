@@ -25,10 +25,13 @@ onAuthStateChanged(auth, (user) => {
 
 async function claimUserProjects(user) {
     try {
+        const token = await user.getIdToken();
         const response = await fetch(ENDPOINTS.claimProjects, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.uid, email: user.email })
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            }
         });
         const data = await response.json();
         if (data.success) console.log('✅ Projects claimed successfully');

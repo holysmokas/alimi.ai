@@ -29,7 +29,7 @@ jobs:
         run: npm run build
       
       - name: Add CNAME
-        run: echo "holysmokas.com" > docs/CNAME
+        run: echo "alimi.ai" > docs/CNAME
       
       - name: Add .nojekyll
         run: touch docs/.nojekyll
@@ -39,4 +39,4 @@ jobs:
         with:
           github_token: ${{ secrets.GIT_TOKEN }}
           publish_dir: ./docs
-          cname: holysmokas.com
+          cname: alimi.ai

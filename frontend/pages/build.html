@@ -256,7 +256,8 @@
                 <div class="form-group">
                     <label class="form-label">Tagline or slogan (optional)</label>
                     <input type="text" class="form-input" id="tagline"
-                        placeholder="e.g., Capturing your perfect moments, Fresh baked daily since 1985">
+                        placeholder="e.g., Capturing your perfect moments, Fresh baked daily since 1985"
+                        oninput="validateStep3()">
                 </div>
 
                 <div class="button-row">
@@ -303,7 +304,8 @@
                 <div class="form-group">
                     <label class="form-label">Business Address (optional)</label>
                     <input type="text" class="form-input" id="businessAddress"
-                        placeholder="123 Main St, City, State 12345">
+                        placeholder="123 Main St, City, State 12345"
+                        oninput="validateStep4()">
                     <p class="form-hint">Leave blank if you work remotely or prefer not to share</p>
                     <div class="contact-checkbox" style="margin-top: 0.5rem;">
                         <input type="checkbox" id="showBusinessAddress">
@@ -315,7 +317,8 @@
                 <div class="form-group">
                     <label class="form-label">Business Hours (optional)</label>
                     <input type="text" class="form-input" id="businessHours"
-                        placeholder="Mon-Fri 9am-5pm, Sat 10am-2pm">
+                        placeholder="Mon-Fri 9am-5pm, Sat 10am-2pm"
+                        oninput="validateStep4()">
                     <div class="contact-checkbox" style="margin-top: 0.5rem;">
                         <input type="checkbox" id="showBusinessHours">
                         <label for="showBusinessHours">Display hours on my website</label>
@@ -330,22 +333,26 @@
                         <div class="social-input-row">
                             <span class="social-icon">📘</span>
                             <input type="url" class="form-input" id="socialFacebook"
-                                placeholder="https://facebook.com/yourbusiness">
+                                placeholder="https://facebook.com/yourbusiness"
+                                oninput="validateStep4()">
                         </div>
                         <div class="social-input-row">
                             <span class="social-icon">📸</span>
                             <input type="url" class="form-input" id="socialInstagram"
-                                placeholder="https://instagram.com/yourbusiness">
+                                placeholder="https://instagram.com/yourbusiness"
+                                oninput="validateStep4()">
                         </div>
                         <div class="social-input-row">
                             <span class="social-icon">💼</span>
                             <input type="url" class="form-input" id="socialLinkedin"
-                                placeholder="https://linkedin.com/in/yourprofile">
+                                placeholder="https://linkedin.com/in/yourprofile"
+                                oninput="validateStep4()">
                         </div>
                         <div class="social-input-row">
                             <span class="social-icon">🐦</span>
                             <input type="url" class="form-input" id="socialTwitter"
-                                placeholder="https://x.com/yourbusiness">
+                                placeholder="https://x.com/yourbusiness"
+                                oninput="validateStep4()">
                         </div>
                     </div>
                 </div>

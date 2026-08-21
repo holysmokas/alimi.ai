@@ -605,6 +605,11 @@ window.validateStep8 = function () {
 };
 
 function populateReview() {
+    // Backstop capture. Several inputs have no oninput, so their validate
+    // function never fires — without this their values are silently dropped.
+    if (typeof window.validateStep3 === 'function') window.validateStep3();
+    if (typeof window.validateStep4 === 'function') window.validateStep4();
+
     // Capture content step data
     wizardData.contentReady = document.getElementById('contentReady').value;
     wizardData.additionalNotes = SecurityUtils.sanitizeLongText(document.getElementById('additionalNotes').value);

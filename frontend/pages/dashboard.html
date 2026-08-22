@@ -37,7 +37,7 @@
         /* Dashboard Grid */
         .dashboard-grid {
             display: grid;
-            grid-template-columns: 1fr 350px;
+            grid-template-columns: 1fr;
             gap: 2rem;
             margin: 2rem 0;
         }
@@ -333,29 +333,6 @@
         .btn-danger:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
-        }
-
-        /* Drive Sidebar */
-        .drive-sidebar {
-            position: sticky;
-            top: 6rem;
-        }
-
-        .drive-section-title {
-            font-size: 1.1rem;
-            color: #ffffff;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        #driveSection {
-            background: linear-gradient(145deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 100%);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            border-radius: 16px;
-            padding: 1.5rem;
         }
 
         /* Domain Status Section */
@@ -705,16 +682,6 @@
                 <div id="domainStatusContent">
                     <!-- Content loaded dynamically -->
                 </div>
-            </div>
-
-            <!-- Sidebar with Google Drive -->
-            <div class="drive-sidebar">
-                <h3 class="drive-section-title">📁 Storage Settings</h3>
-                <div id="driveSection">
-                    <div class="loading-state" style="padding: 1rem;">
-                        <div class="spinner" style="width: 30px; height: 30px;"></div>
-                        Loading storage info...
-                    </div>
                 </div>
             </div>
         </div>
@@ -801,8 +768,6 @@
         </div>
     </div>
 
-    <!-- Load Google Drive UI -->
-    <script type="module" src="/frontend/scripts/driveUI.js"></script>
 
     <script>
         // Global logout function

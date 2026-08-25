@@ -26,4 +26,4 @@ dist/
 # Backend files (should not be here!)
 server.js
 backend/
-serviceAccountKey.json
+serviceAccountKey.jsonpatch-*.py

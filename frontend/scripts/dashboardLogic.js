@@ -136,7 +136,7 @@ async function loadProjects(userId) {
                 }
 
                 return `
-                <div class="project-card">
+                <div class="project-card" data-project-id="${project.id}">
                     <h3>${project.businessName}</h3>
                     <div class="project-info">
                         <p><strong>Status:</strong> <span class="project-status status-${project.status}">${project.status}</span></p>
@@ -169,9 +169,9 @@ async function loadProjects(userId) {
                         
                         ${canModify ? `
                             <button 
-                                onclick='openAiModificationModal(${JSON.stringify(project).replace(/'/g, "&#39;")})' 
+                                onclick='selectChatProject(${JSON.stringify(project).replace(/'/g, "&#39;")})' 
                                 class="btn btn-modify">
-                                🤖 Request Modification (${modsRemaining} free left)
+                                💬 Make a change (${modsRemaining} left)
                             </button>
                         ` : `
                             <button 
@@ -210,144 +210,177 @@ async function loadProjects(userId) {
 // of one editing session and does not need to survive a refresh.
 let modConversation = [];
 
-window.openAiModificationModal = function (project) {
-    currentProject = project;
-    modConversation = [];
-    const modsRemaining = (project.modificationsLimit || 3) - (project.modificationsUsed || 0);
+// ── Chat panel ───────────────────────────────────────────────────────────────
+//
+// The assistant used to live in a modal: open it, type one thing, watch a
+// spinner, close it. That shape reads as a form. The interaction was already a
+// conversation once the clarify step went in — this makes the surface match.
+//
+// Talking is free. Every message goes to /clarify-modification, which reads
+// nothing from the repository and writes nothing. A credit is spent only when
+// the customer presses the confirm button on a plan they have seen.
 
-    document.getElementById('modificationsCount').textContent = modsRemaining;
-    document.getElementById('aiModificationModal').classList.add('show');
-    document.getElementById('aiModificationInput').value = '';
+let chatProject = null;
+let chatThread = [];      // [{ role, content }] — the model's view
+let chatBusy = false;
 
-    document.getElementById('aiChatMessages').innerHTML = `
-        <div class="ai-message">
-            <strong>AI Assistant:</strong> Hi! I can help you change "${project.businessName}".
-            Tell me what you'd like and I'll confirm exactly what I'd do before anything happens —
-            talking costs nothing. You have ${modsRemaining} change${modsRemaining !== 1 ? 's' : ''} remaining.
-        </div>
-    `;
-};
-
-window.closeAiModificationModal = function () {
-    document.getElementById('aiModificationModal').classList.remove('show');
-    currentProject = null;
-};
-
-window.submitAiModification = async function (event) {
-    event.preventDefault();
-
-    const input = document.getElementById('aiModificationInput');
-    const request = input.value.trim();
-    const submitBtn = document.getElementById('aiSubmitBtn');
-    const chatMessages = document.getElementById('aiChatMessages');
-    const processingMsg = document.getElementById('aiProcessingMessage');
-    const inputForm = document.getElementById('aiModificationForm');
-
-    console.log('🔍 DEBUG: submitAiModification called');
-    console.log('🔍 currentUser:', currentUser);
-    console.log('🔍 currentProject:', currentProject);
-    console.log('🔍 request:', request);
-    console.log('🔍 ENDPOINTS:', ENDPOINTS);
-
-    if (!request || !currentProject) return;
-
-    const userMsg = document.createElement('div');
-    userMsg.className = 'user-message';
-    userMsg.innerHTML = `<strong>You:</strong> ${escapeHtml(request)}`;
-    chatMessages.appendChild(userMsg);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-
-    input.value = '';
-    submitBtn.disabled = true;
-
-    // Talk first. This costs nothing and touches nothing — it decides whether the
-    // request is clear, ambiguous, or out of scope before a credit is spent.
-    try {
-        const clarifyResp = await fetch(`${API_BASE_URL}/clarify-modification`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                projectId: currentProject.id,
-                userId: currentUser.uid,
-                message: request,
-                conversation: modConversation
-            })
-        });
-
-        const clarify = await clarifyResp.json();
-        submitBtn.disabled = false;
-
-        modConversation.push({ role: 'user', content: request });
-
-        if (clarify.status === 'question') {
-            appendAi(clarify.question);
-            modConversation.push({ role: 'assistant', content: clarify.question });
-            return;
-        }
-
-        if (clarify.status === 'cannot') {
-            appendAi(`${clarify.reason}<br><br><em>Nothing has been charged.</em>`);
-            modConversation.push({ role: 'assistant', content: clarify.reason });
-            return;
-        }
-
-        if (clarify.status === 'ready') {
-            const fileList = (clarify.files || []).join(', ');
-            const confirmId = `confirm-${Date.now()}`;
-            appendAi(
-                `${escapeHtml(clarify.summary)}` +
-                (fileList ? `<br><span style="opacity:.6;font-size:.85em">Files: ${escapeHtml(fileList)}</span>` : '') +
-                `<br><br><button id="${confirmId}" class="btn btn-primary" style="margin-top:.5rem">Make this change</button>` +
-                `<span style="opacity:.6;font-size:.85em;margin-left:.75rem">Uses one of your changes</span>`
-            );
-            modConversation.push({ role: 'assistant', content: clarify.summary });
-
-            document.getElementById(confirmId).onclick = () => {
-                document.getElementById(confirmId).disabled = true;
-                document.getElementById(confirmId).textContent = 'Starting…';
-                applyModification(clarify.summary);
-            };
-            return;
-        }
-
-        // Anything unexpected — say so rather than silently doing nothing.
-        appendAi("I didn't quite follow that. Could you put it another way?");
-        return;
-
-    } catch (err) {
-        console.error('Clarify failed:', err);
-        submitBtn.disabled = false;
-        appendAi('I could not reach the server just then. Please try again.');
-        return;
-    }
-};
-
-// Small helpers used by both halves of the flow.
-function escapeHtml(s) {
+function chatEscape(s) {
     return String(s ?? '')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function appendAi(html) {
-    const chatMessages = document.getElementById('aiChatMessages');
-    const el = document.createElement('div');
-    el.className = 'ai-message';
-    el.innerHTML = `<strong>AI Assistant:</strong> ${html}`;
-    chatMessages.appendChild(el);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+function chatScroll() {
+    const el = document.getElementById('chatThread');
+    el.scrollTop = el.scrollHeight;
 }
 
-// This is the part that costs a credit. Only reached from the confirm button,
-// so the customer has seen exactly what will change.
-async function applyModification(request) {
-    const submitBtn = document.getElementById('aiSubmitBtn');
-    const chatMessages = document.getElementById('aiChatMessages');
-    const processingMsg = document.getElementById('aiProcessingMessage');
-    const inputForm = document.getElementById('aiModificationForm');
+function chatBubble(html, who) {
+    const el = document.getElementById('chatThread');
+    const empty = document.getElementById('chatEmpty');
+    if (empty) empty.remove();
 
-    submitBtn.disabled = true;
-    inputForm.style.display = 'none';
-    processingMsg.style.display = 'block';
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${who}`;
+    bubble.innerHTML = html;
+    el.appendChild(bubble);
+    chatScroll();
+    return bubble;
+}
+
+function chatTyping(on) {
+    const existing = document.getElementById('chatTyping');
+    if (!on) { if (existing) existing.remove(); return; }
+    if (existing) return;
+
+    const el = document.getElementById('chatThread');
+    const dots = document.createElement('div');
+    dots.className = 'chat-typing';
+    dots.id = 'chatTyping';
+    dots.innerHTML = '<span></span><span></span><span></span>';
+    el.appendChild(dots);
+    chatScroll();
+}
+
+function chatSetEnabled(on) {
+    document.getElementById('chatInput').disabled = !on;
+    document.getElementById('chatSendBtn').disabled = !on;
+}
+
+// Clicking a project points the chat at it. Switching projects starts a fresh
+// thread — carrying a conversation about one site over to another would be
+// worse than losing it.
+window.selectChatProject = function (project) {
+    const switching = !chatProject || chatProject.id !== project.id;
+    chatProject = project;
+
+    if (switching) {
+        chatThread = [];
+        document.getElementById('chatThread').innerHTML = '';
+    }
+
+    document.querySelectorAll('.project-card').forEach((c) => {
+        c.classList.toggle('chat-active', c.dataset.projectId === project.id);
+    });
+
+    const remaining = (project.modificationsLimit || 3) - (project.modificationsUsed || 0);
+    document.getElementById('chatSubject').textContent = project.businessName;
+    document.getElementById('chatCredits').textContent =
+        `${remaining} change${remaining !== 1 ? 's' : ''} remaining`;
+
+    chatSetEnabled(remaining > 0);
+
+    if (switching) {
+        chatBubble(
+            remaining > 0
+                ? `What would you like to change about <strong>${chatEscape(project.businessName)}</strong>? I'll tell you exactly what I'd do before anything happens.`
+                : `You've used all your changes for this site. Call <strong>(415) 691-7085</strong> and we'll sort out more.`,
+            'ai'
+        );
+    }
+
+    document.getElementById('chatInput').focus();
+};
+
+window.sendChatMessage = async function () {
+    if (chatBusy || !chatProject) return;
+
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    chatBubble(chatEscape(text), 'user');
+    input.value = '';
+    chatBusy = true;
+    chatSetEnabled(false);
+    chatTyping(true);
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/clarify-modification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projectId: chatProject.id,
+                userId: currentUser.uid,
+                message: text,
+                conversation: chatThread
+            })
+        });
+
+        const data = await resp.json();
+        chatTyping(false);
+        chatThread.push({ role: 'user', content: text });
+
+        if (data.status === 'question') {
+            chatBubble(chatEscape(data.question), 'ai');
+            chatThread.push({ role: 'assistant', content: data.question });
+
+        } else if (data.status === 'cannot') {
+            chatBubble(
+                `${chatEscape(data.reason)}<span class="chat-meta">Nothing has been charged.</span>`,
+                'ai'
+            );
+            chatThread.push({ role: 'assistant', content: data.reason });
+
+        } else if (data.status === 'ready') {
+            const files = (data.files || []).join(', ');
+            const bubble = chatBubble(
+                `${chatEscape(data.summary)}` +
+                (files ? `<span class="chat-meta">Files: ${chatEscape(files)}</span>` : '') +
+                `<br><button class="chat-confirm-btn">Make this change</button>` +
+                `<span class="chat-meta">Uses one of your changes</span>`,
+                'ai'
+            );
+            chatThread.push({ role: 'assistant', content: data.summary });
+
+            const btn = bubble.querySelector('.chat-confirm-btn');
+            btn.onclick = () => {
+                btn.disabled = true;
+                btn.textContent = 'Starting…';
+                applyChatModification(data.summary);
+            };
+
+        } else {
+            chatBubble("I didn't quite follow that — could you put it another way?", 'ai');
+        }
+
+    } catch (err) {
+        console.error('Chat failed:', err);
+        chatTyping(false);
+        chatBubble('I couldn\'t reach the server just then. Please try again.', 'ai');
+    } finally {
+        chatBusy = false;
+        const remaining = (chatProject.modificationsLimit || 3) - (chatProject.modificationsUsed || 0);
+        chatSetEnabled(remaining > 0);
+        document.getElementById('chatInput').focus();
+    }
+};
+
+// The part that costs a credit. Only reachable from the confirm button, so the
+// customer has already seen exactly what will change.
+async function applyChatModification(summary) {
+    chatBusy = true;
+    chatSetEnabled(false);
+    chatTyping(true);
 
     try {
         const response = await fetch(ENDPOINTS.requestModification, {
@@ -355,122 +388,113 @@ async function applyModification(request) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 userId: currentUser.uid,
-                projectId: currentProject.id,
-                modificationRequest: request
+                projectId: chatProject.id,
+                modificationRequest: summary
             })
         });
 
         const data = await response.json();
-        processingMsg.style.display = 'none';
-        inputForm.style.display = 'block';
-        submitBtn.disabled = false;
+        chatTyping(false);
 
-        if (data.success) {
-            // Add AI response
-            const aiMsg = document.createElement('div');
-            aiMsg.className = 'ai-message';
-            aiMsg.innerHTML = `<strong>AI Assistant:</strong> Great! I've submitted your request. The AI is now processing your changes - this typically takes 1-3 minutes. I'll update this page automatically when it's complete. ${data.modificationsRemaining} free modification${data.modificationsRemaining !== 1 ? 's' : ''} remaining.`;
-            chatMessages.appendChild(aiMsg);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-
-            // Update count
-            document.getElementById('modificationsCount').textContent = data.modificationsRemaining;
-
-            // Poll for modification completion (every 10 seconds for up to 3 minutes)
-            let pollCount = 0;
-            const maxPolls = 18; // 18 * 10 seconds = 3 minutes
-            const projectIdToCheck = currentProject.id;
-
-            const pollInterval = setInterval(async () => {
-                pollCount++;
-                console.log(`🔄 Polling for modification status... (${pollCount}/${maxPolls})`);
-
-                try {
-                    // Fetch latest project data directly
-                    const response = await fetch(ENDPOINTS.userProjects(currentUser.uid));
-                    const data = await response.json();
-
-                    if (data.success && data.projects) {
-                        const updatedProject = data.projects.find(p => p.id === projectIdToCheck);
-                        if (updatedProject && updatedProject.modifications) {
-                            const latestMod = updatedProject.modifications[updatedProject.modifications.length - 1];
-                            if (latestMod && latestMod.status === 'completed') {
-                                clearInterval(pollInterval);
-                                console.log('✅ Modification completed!');
-
-                                // Update currentProject with new data
-                                currentProject = updatedProject;
-
-                                // Reload the projects list to update the UI
-                                await loadProjects(currentUser.uid);
-
-                                // Show completion message
-                                const completeMsg = document.createElement('div');
-                                completeMsg.className = 'ai-message';
-                                completeMsg.innerHTML = `<strong>AI Assistant:</strong> ✅ Your modification is complete! Your website has been updated. <a href="${updatedProject.liveUrl}" target="_blank" style="color: #6366f1; font-weight: bold;">View your updated site</a>`;
-                                chatMessages.appendChild(completeMsg);
-                                chatMessages.scrollTop = chatMessages.scrollHeight;
-                            } else if (latestMod && latestMod.status === 'failed') {
-                                clearInterval(pollInterval);
-                                console.log('❌ Modification failed');
-
-                                // Reload the projects list to update the UI
-                                await loadProjects(currentUser.uid);
-
-                                const failMsg = document.createElement('div');
-                                failMsg.className = 'ai-message';
-                                failMsg.innerHTML = `<strong>AI Assistant:</strong> ❌ That change didn't go through, and your credit has been returned — you haven't been charged. Try rewording it, or call (415) 691-7085 and we'll do it by hand.`;
-                                chatMessages.appendChild(failMsg);
-                                chatMessages.scrollTop = chatMessages.scrollHeight;
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.error('Poll error:', err);
-                }
-
-                // Stop polling after max attempts
-                if (pollCount >= maxPolls) {
-                    clearInterval(pollInterval);
-                    console.log('⏱️ Polling timeout');
-
-                    // Final reload to show current status
-                    await loadProjects(currentUser.uid);
-
-                    const timeoutMsg = document.createElement('div');
-                    timeoutMsg.className = 'ai-message';
-                    timeoutMsg.innerHTML = `<strong>AI Assistant:</strong> Your modification is still processing. Please refresh the page in a few minutes to see the updated status, or check your email for confirmation.`;
-                    chatMessages.appendChild(timeoutMsg);
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
-            }, 10000); // Poll every 10 seconds
-
-            if (data.modificationsRemaining === 0) {
-                closeAiModificationModal();
-                showResponseModal('Modifications Limit Reached', 'You\'ve used all 3 free modifications. Additional changes will require a small fee. Contact us at (415) 691-7085 to discuss pricing.');
-            }
-
-        } else {
-            const aiMsg = document.createElement('div');
-            aiMsg.className = 'ai-message';
-            aiMsg.innerHTML = `<strong>AI Assistant:</strong> ${escapeHtml(data.error || 'Something went wrong')}. Nothing has been charged — please try again, or call (415) 691-7085.`;
-            chatMessages.appendChild(aiMsg);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (!data.success) {
+            chatBubble(
+                `${chatEscape(data.error || 'Something went wrong')}<span class="chat-meta">Nothing has been charged.</span>`,
+                'ai'
+            );
+            return;
         }
 
-    } catch (error) {
-        console.error('Error submitting modification:', error);
-        processingMsg.style.display = 'none';
-        inputForm.style.display = 'block';
-        submitBtn.disabled = false;
+        chatBubble(
+            `On it — this usually takes a minute or two. I'll tell you when it's live.` +
+            `<span class="chat-meta">${data.modificationsRemaining} change${data.modificationsRemaining !== 1 ? 's' : ''} remaining</span>`,
+            'ai'
+        );
+        document.getElementById('chatCredits').textContent =
+            `${data.modificationsRemaining} change${data.modificationsRemaining !== 1 ? 's' : ''} remaining`;
 
-        const aiMsg = document.createElement('div');
-        aiMsg.className = 'ai-message';
-        aiMsg.innerHTML = '<strong>AI Assistant:</strong> I encountered a technical error. Please try again or contact support at (415) 691-7085.';
-        chatMessages.appendChild(aiMsg);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        pollChatModification();
+
+    } catch (err) {
+        console.error('Apply failed:', err);
+        chatTyping(false);
+        chatBubble('I could not start that change. Please try again.', 'ai');
+    } finally {
+        chatBusy = false;
     }
-};
+}
+
+// Wait for the background job. Ten seconds between checks, giving up after
+// three minutes — the email arrives either way.
+function pollChatModification() {
+    const projectId = chatProject.id;
+    let attempts = 0;
+
+    const timer = setInterval(async () => {
+        attempts++;
+
+        try {
+            const resp = await fetch(ENDPOINTS.userProjects(currentUser.uid));
+            const data = await resp.json();
+            if (!data.success || !data.projects) return;
+
+            const updated = data.projects.find((p) => p.id === projectId);
+            if (!updated || !updated.modifications) return;
+
+            const latest = updated.modifications[updated.modifications.length - 1];
+            if (!latest) return;
+
+            if (latest.status === 'completed') {
+                clearInterval(timer);
+                chatProject = updated;
+                await loadProjects(currentUser.uid);
+                chatBubble(
+                    `Done — it's live. <a href="${updated.liveUrl}" target="_blank" style="color:#10b981;font-weight:600">Take a look</a>` +
+                    `<span class="chat-meta">GitHub Pages can take a couple of minutes to catch up.</span>`,
+                    'ai'
+                );
+                chatSetEnabled(true);
+
+            } else if (latest.status === 'failed') {
+                clearInterval(timer);
+                await loadProjects(currentUser.uid);
+                chatBubble(
+                    `That didn't go through, and your change has been returned — you haven't been charged.` +
+                    `<span class="chat-meta">Try wording it differently, or call (415) 691-7085.</span>`,
+                    'ai'
+                );
+                chatSetEnabled(true);
+            }
+        } catch (err) {
+            console.error('Poll error:', err);
+        }
+
+        if (attempts >= 18) {
+            clearInterval(timer);
+            await loadProjects(currentUser.uid);
+            chatBubble(
+                `Still working on it. Check your email — I'll send confirmation when it's done.`,
+                'ai'
+            );
+            chatSetEnabled(true);
+        }
+    }, 10000);
+}
+
+// Enter sends, Shift+Enter is a newline. Standard for a chat box, and the hint
+// under the composer says so.
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('chatInput');
+    const send = document.getElementById('chatSendBtn');
+    if (!input || !send) return;
+
+    send.onclick = () => window.sendChatMessage();
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            window.sendChatMessage();
+        }
+    });
+});
 
 function showResponseModal(title, message) {
     const modal = document.getElementById('responseModal');

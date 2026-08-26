@@ -361,15 +361,6 @@ window.sendChatMessage = async function () {
         chatBusy = false;
         const remaining = (chatProject.modificationsLimit || 3) - (chatProject.modificationsUsed || 0);
         chatSetEnabled(remaining > 0);
-
-    // The header link follows whichever project is selected
-    const navLink = document.getElementById('navViewSite');
-    if (navLink) {
-        navLink.href = project.liveUrl || '#';
-        navLink.style.display = project.liveUrl ? 'inline-block' : 'none';
-    }
-
-    renderLogDrawer(project);
         document.getElementById('chatInput').focus();
     }
 };

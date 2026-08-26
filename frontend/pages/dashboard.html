@@ -857,7 +857,7 @@
         </div>
 
         <div class="dashboard-grid">
-            <!-- Main Projects Column -->
+            <!-- Left: projects, and the domain status that belongs with them -->
             <div class="projects-column">
                 <div id="projectsContainer" class="projects-grid">
                     <div class="loading-state">
@@ -865,21 +865,19 @@
                         Loading your projects...
                     </div>
                 </div>
+
+                <div id="domainStatusSection" class="domain-status-section" style="display: none;">
+                    <div class="section-header">
+                        <h3>🌐 Domain Status</h3>
+                    </div>
+                    <div id="domainStatusContent">
+                        <!-- Content loaded dynamically -->
+                    </div>
+                </div>
             </div>
 
-            <div id="domainStatusSection" class="domain-status-section" style="display: none;">
-                <div class="section-header">
-                    <h3>🌐 Domain Status</h3>
-                </div>
-                <div id="domainStatusContent">
-                    <!-- Content loaded dynamically -->
-                </div>
-                </div>
-            </div>
-
-            <!-- Chat panel. Always present rather than a modal: the interaction
-                 is a conversation, and a popup that closes after one message
-                 does not read like one. -->
+            <!-- Right: the assistant. Permanent rather than a modal — the
+                 interaction is a conversation and should look like one. -->
             <aside class="chat-panel" id="chatPanel">
                 <div class="chat-panel-header">
                     <h3>💬 Make a change</h3>

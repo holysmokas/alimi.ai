@@ -61,7 +61,9 @@
                scrolls. 7rem clears the fixed nav. */
             position: sticky;
             top: 7rem;
-            height: calc(100vh - 10rem);
+            /* Leave room for the history drawer beneath rather than filling
+               the viewport and pushing it below the fold. */
+            height: calc(100vh - 16rem);
             min-height: 480px;
             overflow: hidden;
         }

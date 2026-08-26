@@ -113,7 +113,7 @@ async function loadProjects(userId) {
                                 <p style="margin: 0 0 0.5rem 0; color: #856404;">
                                     <strong>⏳ Payment Setup Incomplete</strong>
                                 </p>
-                                <button onclick="setupPayments('${project.id}')" class="btn btn-purchase" style="margin-top: 0.5rem;">
+                                <button onclick="event.stopPropagation(); setupPayments('${project.id}')" class="btn btn-purchase" style="margin-top: 0.5rem;">
                                     Complete Payment Setup
                                 </button>
                             </div>
@@ -127,7 +127,7 @@ async function loadProjects(userId) {
                                 <p style="margin: 0 0 0.5rem 0; color: #666; font-size: 0.9rem;">
                                     Set up Stripe to receive payments directly to your bank account.
                                 </p>
-                                <button onclick="setupPayments('${project.id}')" class="btn btn-primary" style="margin-top: 0.5rem;">
+                                <button onclick="event.stopPropagation(); setupPayments('${project.id}')" class="btn btn-primary" style="margin-top: 0.5rem;">
                                     🔗 Setup Payments
                                 </button>
                             </div>
@@ -136,7 +136,8 @@ async function loadProjects(userId) {
                 }
 
                 return `
-                <div class="project-card" data-project-id="${project.id}">
+                <div class="project-card" data-project-id="${project.id}"
+                    onclick='selectChatProject(${JSON.stringify(project).replace(/'/g, "&#39;")})'>
                     <h3>${project.businessName}</h3>
                     <div class="project-info">
                         <p><strong>Status:</strong> <span class="project-status status-${project.status}">${project.status}</span></p>
@@ -152,32 +153,12 @@ async function loadProjects(userId) {
 
                     ${paymentSetupHtml}
 
-                    ${modifications.length > 0 ? `
-                    <div class="modification-log">
-                        <h4>📋 Modification Log</h4>
-                        ${formatModificationLog(modifications, 3)}
-                        ${modifications.length > 3 ? `
-                            <button onclick='viewAllModifications(${JSON.stringify(modifications).replace(/'/g, "&#39;")})' class="view-all-btn">
-                                View all ${modifications.length} modifications
-                            </button>
-                        ` : ''}
-                    </div>
-                    ` : '<p class="no-modifications">No modifications yet</p>'}
-
                     <div class="project-btn-group">
-                        <a href="${project.liveUrl}" target="_blank" class="btn btn-view">🌐 View Live Site</a>
-                        
-                        ${canModify ? `
+                        ${canModify ? '' : `
                             <button 
-                                onclick='selectChatProject(${JSON.stringify(project).replace(/'/g, "&#39;")})' 
-                                class="btn btn-modify">
-                                💬 Make a change (${modsRemaining} left)
-                            </button>
-                        ` : `
-                            <button 
-                                onclick='openPurchaseModal(${JSON.stringify(project).replace(/'/g, "&#39;")})' 
+                                onclick='event.stopPropagation(); openPurchaseModal(${JSON.stringify(project).replace(/'/g, "&#39;")})' 
                                 class="btn btn-purchase">
-                                💳 Purchase More Modifications
+                                💳 Buy more changes
                             </button>
                         `}
                     </div>
@@ -289,6 +270,15 @@ window.selectChatProject = function (project) {
 
     chatSetEnabled(remaining > 0);
 
+    // The header link follows whichever project is selected
+    const navLink = document.getElementById('navViewSite');
+    if (navLink) {
+        navLink.href = project.liveUrl || '#';
+        navLink.style.display = project.liveUrl ? 'inline-block' : 'none';
+    }
+
+    renderLogDrawer(project);
+
     if (switching) {
         chatBubble(
             remaining > 0
@@ -371,6 +361,15 @@ window.sendChatMessage = async function () {
         chatBusy = false;
         const remaining = (chatProject.modificationsLimit || 3) - (chatProject.modificationsUsed || 0);
         chatSetEnabled(remaining > 0);
+
+    // The header link follows whichever project is selected
+    const navLink = document.getElementById('navViewSite');
+    if (navLink) {
+        navLink.href = project.liveUrl || '#';
+        navLink.style.display = project.liveUrl ? 'inline-block' : 'none';
+    }
+
+    renderLogDrawer(project);
         document.getElementById('chatInput').focus();
     }
 };
@@ -480,12 +479,56 @@ function pollChatModification() {
     }, 10000);
 }
 
-// Enter sends, Shift+Enter is a newline. Standard for a chat box, and the hint
-// under the composer says so.
-document.addEventListener('DOMContentLoaded', () => {
+// Change history, folded away. One line per entry, opening on hover — the
+// request text is usually short and the rest is rarely wanted.
+function renderLogDrawer(project) {
+    const drawer = document.getElementById('logDrawer');
+    const body = document.getElementById('logDrawerBody');
+    const label = document.getElementById('logDrawerLabel');
+    if (!drawer || !body) return;
+
+    const mods = project.modifications || [];
+    if (mods.length === 0) {
+        drawer.style.display = 'none';
+        return;
+    }
+
+    drawer.style.display = 'block';
+    label.textContent = `Change history (${mods.length})`;
+
+    body.innerHTML = mods.slice().reverse().map((mod) => {
+        const failed = mod.status === 'failed';
+        const when = mod.timestamp
+            ? new Date(mod.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+            : '';
+        return `
+            <div class="log-row ${failed ? 'failed' : ''}">
+                <div class="log-row-head">
+                    <span class="log-row-request">${chatEscape(mod.request || 'No description')}</span>
+                    <span class="log-row-when">${when}</span>
+                </div>
+                <div class="log-row-detail">
+                    ${failed ? 'Failed — not charged' : 'Applied'}${mod.userEmail ? ` · ${chatEscape(mod.userEmail)}` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Enter sends, Shift+Enter is a newline.
+//
+// Wired immediately rather than on DOMContentLoaded: this file is an ES module,
+// so it evaluates after that event has already fired and the listener never
+// ran — which is why the composer did nothing.
+(function wireChat() {
     const input = document.getElementById('chatInput');
     const send = document.getElementById('chatSendBtn');
-    if (!input || !send) return;
+    const toggle = document.getElementById('logDrawerToggle');
+
+    if (!input || !send) {
+        // The script can still load before the body in some paths; try again.
+        return void setTimeout(wireChat, 50);
+    }
 
     send.onclick = () => window.sendChatMessage();
     input.addEventListener('keydown', (e) => {
@@ -494,7 +537,11 @@ document.addEventListener('DOMContentLoaded', () => {
             window.sendChatMessage();
         }
     });
-});
+
+    if (toggle) {
+        toggle.onclick = () => document.getElementById('logDrawer').classList.toggle('open');
+    }
+})();
 
 function showResponseModal(title, message) {
     const modal = document.getElementById('responseModal');

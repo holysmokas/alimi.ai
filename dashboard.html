@@ -231,11 +231,130 @@
             line-height: 1.6;
         }
 
-        /* The selected project, so it is obvious what the chat is about */
+        /* The whole card is the control now */
+        .project-card {
+            cursor: pointer;
+        }
+
         .project-card.chat-active {
             border-color: rgba(16, 185, 129, 0.55);
             box-shadow: 0 0 30px rgba(16, 185, 129, 0.12);
         }
+
+        .project-card.chat-active::before {
+            content: 'Selected';
+            float: right;
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.15);
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+
+        /* Anything clickable inside the card must not also select it */
+        .project-card a,
+        .project-card button {
+            cursor: pointer;
+        }
+
+        /* ── Change history drawer ───────────────────────────────────────── */
+
+        .log-drawer {
+            grid-column: 2;
+            background: rgba(16, 185, 129, 0.05);
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: -1rem;
+        }
+
+        @media (max-width: 900px) {
+            .log-drawer { grid-column: 1; margin-top: 0; }
+        }
+
+        .log-drawer-toggle {
+            width: 100%;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.75);
+            padding: 0.85rem 1.25rem;
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-drawer-toggle:hover { color: #10b981; }
+
+        .log-drawer-caret {
+            transition: transform 0.2s ease;
+            opacity: 0.6;
+        }
+
+        .log-drawer.open .log-drawer-caret { transform: rotate(180deg); }
+
+        .log-drawer-body {
+            display: none;
+            padding: 0 1rem 1rem;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .log-drawer.open .log-drawer-body { display: block; }
+
+        /* Each entry is a one-line summary that opens on hover */
+        .log-row {
+            border-left: 3px solid rgba(16, 185, 129, 0.4);
+            padding: 0.55rem 0.75rem;
+            margin-bottom: 0.4rem;
+            border-radius: 0 6px 6px 0;
+            background: rgba(16, 185, 129, 0.06);
+            font-size: 0.85rem;
+            transition: background 0.15s ease;
+        }
+
+        .log-row:hover { background: rgba(16, 185, 129, 0.12); }
+
+        .log-row.failed { border-left-color: rgba(239, 68, 68, 0.6); }
+
+        .log-row-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        .log-row-request {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+
+        .log-row:hover .log-row-request {
+            white-space: normal;
+            overflow: visible;
+        }
+
+        .log-row-when {
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 0.78rem;
+            white-space: nowrap;
+        }
+
+        .log-row-detail {
+            display: none;
+            margin-top: 0.4rem;
+            color: rgba(255, 255, 255, 0.45);
+            font-size: 0.78rem;
+        }
+
+        .log-row:hover .log-row-detail { display: block; }
 
         /* Project Cards */
         .projects-grid {
@@ -803,7 +922,7 @@
             align-items: center;
         }
     </style>
-  <script type="module" crossorigin src="/assets/dashboard-C83gB0f1.js"></script>
+  <script type="module" crossorigin src="/assets/dashboard-fnR27z2C.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/config-BzkwUBL6.js">
   <link rel="stylesheet" crossorigin href="/assets/style-Bm6i-fqz.css">
 </head>
@@ -843,6 +962,9 @@
                 alimi.ai
             </div>
             <div class="nav-actions">
+                <a id="navViewSite" href="#" target="_blank" class="btn btn-view" style="display:none">
+                    🌐 View Live Site
+                </a>
                 <button onclick="openSupportModal()" class="btn btn-danger">
                     📧 Contact Support
                 </button>
@@ -902,6 +1024,16 @@
                     </div>
                 </div>
             </aside>
+
+            <!-- History, folded away. It was the largest block on the page and
+                 the least often read. -->
+            <div class="log-drawer" id="logDrawer" style="display:none">
+                <button class="log-drawer-toggle" id="logDrawerToggle">
+                    <span id="logDrawerLabel">Change history</span>
+                    <span class="log-drawer-caret">▾</span>
+                </button>
+                <div class="log-drawer-body" id="logDrawerBody"></div>
+            </div>
         </div>
 
         <!-- AI Modification Modal -->

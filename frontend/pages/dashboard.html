@@ -60,12 +60,9 @@
             border-radius: 16px;
             display: flex;
             flex-direction: column;
-            /* Sticky so the conversation stays put while the project list
-               scrolls. 7rem clears the fixed nav. */
-            position: sticky;
-            top: 7rem;
-            /* Leave room for the history drawer beneath rather than filling
-               the viewport and pushing it below the fold. */
+            /* Not sticky. Pinning the panel meant the history drawer below it
+               slid underneath when the page scrolled — the column has to move
+               as one thing. */
             height: calc(100vh - 16rem);
             min-height: 480px;
             overflow: hidden;
